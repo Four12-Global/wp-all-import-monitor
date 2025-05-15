@@ -1,0 +1,8 @@
+WPAIP: Initialized tracking for Import ID 31
+WPAIP: Using manually counted stats (or last_run unavailable) for Import ID 31
+WPAIP (Send Data ID: 31): === BEFORE wp_remote_post ===
+WPAIP (Send Data ID: 31): Received RESPONSE. Code: 302
+WPAIP (Send Data ID: 31): Callback accepted (HTTP 302).
+WPAIP: Cleared temporary tracking data for Import ID 31
+Created	Updated	Skipped	Deleted	Changed Missing	Count
+0	0	20	0	0	20
