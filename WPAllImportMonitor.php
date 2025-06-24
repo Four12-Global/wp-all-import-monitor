@@ -43,26 +43,33 @@ function wpaip_handle_direct_actions() {
             wpaip_do_clear_breeze_cache(); // This function will handle response and exit
             break;
 
-        case 'run_cli':
-            if (isset($_GET['import_id'])) {
-                $import_id_int = intval($_GET['import_id']);
-                // Get launch result including exit code and output
-                $launch_result = wpaip_launch_import_cli($import_id_int);
-
-                // Send JSON response with launch details
-                wpaip_send_json_success(
-                    "WP-CLI import process for ID " . $import_id_int . " has been initiated.",
-                    200,
-                    [
-                        'import_id' => $import_id_int,
-                        'status_message' => 'CLI initiated',
-                        'launch_result' => $launch_result
-                    ]
-                );
-            } else {
-                wpaip_send_json_error('Import ID not provided for run_cli action.', 400);
-            }
-            break;
+            case 'run_cli':
+                if (isset($_GET['import_id'])) {
+                    $import_id_int = intval($_GET['import_id']);
+                    $launch_result = wpaip_launch_import_cli($import_id_int);
+            
+                    // Determine message based on launch success
+                    $user_message = "Running import....";
+                    if (!$launch_result['success'] || empty($launch_result['pid'])) {
+                        $user_message = "Import in progress...";
+                        if ($launch_result['exit_code'] !== 0) {
+                            $user_message = "The website update process encountered an issue during initiation (Code: " . $launch_result['exit_code'] . "). Monitoring for further status.";
+                        }
+                    }
+            
+                    wpaip_send_json_success(
+                        $user_message,
+                        200,
+                        [
+                            'import_id'     => $import_id_int,
+                            'status_message' => $launch_result['success'] && !empty($launch_result['pid']) ? 'CLI successfully launched' : 'CLI launch status uncertain',
+                            'launch_result'  => $launch_result
+                        ]
+                    );
+                } else {
+                    wpaip_send_json_error('Import ID not provided for run_cli action.', 400);
+                }
+                break;
 
         // IMPORTANT: NO 'cancel' or 'cancel_import' case here.
         // Let WordPress and WP All Import handle their native actions.
@@ -567,4 +574,36 @@ function wpaip_send_data_to_script($import_id, $import_data) {
         error_log( $log_prefix . "WARNING – Non-200/302 Response: {$response_body}" );
     }
 }
+
+
+/**
+ * ------------------------------------------------------------------------
+ *  Jet Smart Filters – rebuild the index automatically after Partners import
+ * ------------------------------------------------------------------------
+ *
+ *  • Runs only for Import ID 16 (Partners).
+ *  • Relies on the normal WordPress load order, so JSF classes are present.
+ *  • Uses priority 20 so it executes *after* the main wpaip_after_xml_import()
+ *    routine finishes its own work.
+ */
+add_action( 'pmxi_after_xml_import', 'wpaip_reindex_jsf_after_partners', 20, 1 );
+
+function wpaip_reindex_jsf_after_partners( $import_id ) {
+
+	// 1. Only re-index when the Partners import (ID 16) completes
+	if ( intval( $import_id ) !== 16 ) {
+		return;
+	}
+
+	// 2. Safety checks – make sure Jet Smart Filters is active
+	if ( function_exists( 'jet_smart_filters' )
+	     && method_exists( jet_smart_filters()->indexer, 'index_filters' )
+	) {
+		jet_smart_filters()->indexer->index_filters();
+		error_log( 'WPAIP: Jet Smart Filters index rebuilt after Partners import (ID 16).' );
+	} else {
+		error_log( 'WPAIP: Jet Smart Filters classes not found – index NOT rebuilt.' );
+	}
+}
+
 ?>
